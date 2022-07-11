@@ -10,19 +10,24 @@ const user = {
 const routing = {
     '/': 'Welcome to homepage',
     '/user': user,
-    '/user/name': () => user.name,
+    '/user/name': () => user.name.toUpperCase(),
     '/user/age': () => user.age,
-    '/user/*': (client, par) => {
-        return 'parameter = ', par[0];
+    '/hello': {hello: 'world', andArray: [1,2,3,4,5,6]},
+    '/api/method1': (req, res, callback) => {
+        console.log(req.url + " " + res.statusCode);
+        callback({status: res.statusCode})
     }
+    
 }
 
 const types = {
-    object: JSON.stringify,
-    string: s => s,
-    number: n => n.toString(),
-    undefined: () => 'not found',
-    function: (fn, req, res) => JSON.stringify(fn(req, res))
+    object: ([data], callback) => callback(JSON.stringify(data)),
+   
+    undefined: (args, callback) => callback('not found'),
+    function: ([fn, req, res], callback) => {
+        if (fn.length === 3) fn(req, res,callback)
+        else callback(JSON.stringify(fn(req, res)))
+    }
 }
 
 const matching = [];
@@ -55,7 +60,18 @@ const router = client => {
     return renderer(route, par, client);
 }
 
+const serve = (data, req, res) => {
+    const type = typeof data;
+    if (typeof data === 'string') {
+        return res.end(data);
+    }
+    const serializer = types[type];
+    serializer([data,req, res], data => serve(data, req, res))
+}
+
 http.createServer((req, res) => {
-    res.end(router({req, res}) + "");
+    const data = routing[req.url];
+    serve(data, req, res);
 }).listen(3000)
 
+setInterval(() => user.age++ ,2000)
