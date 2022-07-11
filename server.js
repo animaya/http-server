@@ -8,37 +8,54 @@ const user = {
 }
 
 const routing = {
-    '/': '<h1>Welcome to homepage</h1>',
+    '/': 'Welcome to homepage',
     '/user': user,
-    '/user/name': () => user.name.toUpperCase(),
-    '/hello': {hello: "world", andArray: [1,2,3,4,5,6,7]},
-    '/api/method1': (req, res) => {
-        console.log(req.url + ' ' + res.statusCode);
-        return {status: res.statusCode};
-    },
-    '/api/mehod2': req => ({
-        user,
-        url: req.url,
-        cookie: req.headers.cookie
-
-    }),
+    '/user/name': () => user.name,
+    '/user/age': () => user.age,
+    '/user/*': (client, par) => {
+        return 'parameter = ', par[0];
+    }
 }
 
 const types = {
     object: JSON.stringify,
     string: s => s,
+    number: n => n.toString(),
     undefined: () => 'not found',
     function: (fn, req, res) => JSON.stringify(fn(req, res))
 }
 
+const matching = [];
+for (const key in routing) {
+    if (key.includes("*")) {
+        const rx = new RegExp(key.replace('*', '(.*)'));
+        const route = routing[key];
+        matching.push([rx,route]);
+        delete routing[key];
+
+    }
+}
+
+const router = client => {
+    let par;
+    let route  = routing[client.req.url];
+    if (!route) {
+        for (let i = 0; i < matching.length; i++) {
+            const rx = matching[i];
+            par = client.req.url.match[rx[0]];
+            if (par) {
+                par.shift();
+                route = rx[1];
+                break;
+            }
+        }
+    }
+    const type = typeof route;
+    const renderer = types[type];
+    return renderer(route, par, client);
+}
+
 http.createServer((req, res) => {
-    const data = routing[req.url];
-    const type = typeof data;
-    const serializer = types[type];
-    const result = serializer(data, req, res);
-    res.end(result);
+    res.end(router({req, res}) + "");
 }).listen(3000)
 
-setInterval(() => {
-    user.age++;
-}, 1000);
